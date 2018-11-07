@@ -1,4 +1,4 @@
-package ScalaNewProject
+package ScalaNewProject.nju.software.graph.main
 
 /**
  * Hello world!
