@@ -5,7 +5,6 @@ import java.io.{File, PrintWriter}
 import nju.software.graph.accumulator.DateResultAccumulator
 import nju.software.graph.constant.constant
 import nju.software.graph.entity.Entity.DateResult
-import nju.software.graph.main.example.{edgeRDD, graph, vertexRDD}
 import nju.software.graph.util.Util
 import org.apache.spark._
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
