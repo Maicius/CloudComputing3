@@ -5,7 +5,7 @@ import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
 import scala.collection.mutable.ArrayBuffer
 
-object example {
+object example extends App{
   val conf = new SparkConf().setAppName("Simple GraphX").setMaster("local[*]")
   val sc = new SparkContext(conf)
   println("hello world!!!")
