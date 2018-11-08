@@ -36,17 +36,17 @@ object Main {
     val dateMap = new DateResultAccumulator()
     sc.register(dateMap, "dateMap")
 
-    val node_data: RDD[(Long, (String, Int))] = sc.textFile(constant.NODE_FILE_PATH).map { line =>
+    val node_data: RDD[(Long, (String, Int, String))] = sc.textFile(constant.NODE_FILE_PATH).map { line =>
       val fields = line.split(",")
-      (fields(0).toLong, (fields(1), fields(3).toInt))
+      (fields(0).toLong, (fields(1), fields(3).toInt, fields(4)))
     }
-    val maxKey = node_data.max()(new Ordering[(Long, (String, Int))]() {
-      override def compare(x: (Long, (String, Int)), y: (Long, (String, Int))): Int =
+    val maxKey = node_data.max()(new Ordering[(Long, (String, Int, String))]() {
+      override def compare(x: (Long, (String, Int, String)), y: (Long, (String, Int, String))): Int =
         Ordering[Int].compare(x._2._2, y._2._2)
     })
     println(maxKey._2._2)
-    val minKey = node_data.min()(new Ordering[(Long, (String, Int))]() {
-      override def compare(x: (Long, (String, Int)), y: (Long, (String, Int))): Int =
+    val minKey = node_data.min()(new Ordering[(Long, (String, Int, String))]() {
+      override def compare(x: (Long, (String, Int, String)), y: (Long, (String, Int, String))): Int =
         Ordering[Int].compare(x._2._2, y._2._2)
     })
     println(minKey._2._2)
@@ -54,12 +54,12 @@ object Main {
       val data = line.split(" ")
       Edge(data(0).toLong, data(1).toInt)
     }
-    val graph: Graph[(String, Int), Int] = Graph(node_data, edge_data)
+    val graph: Graph[(String, Int, String), Int] = Graph(node_data, edge_data)
     for (time <- Range(minKey._2._2, maxKey._2._2, constant.TIME_DAY)) {
-      var monthData: ArrayBuffer[(String, Int, String, Int)] = new ArrayBuffer[(String, Int, String, Int)]()
+      var monthData: ArrayBuffer[(String, Int, String,String, Int, String)] = new ArrayBuffer[(String, Int, String,String, Int,String)]()
       val month = Util.tranTimeToString(time)
       for (triplet <- graph.triplets.filter(t => t.dstAttr._2 > time && t.dstAttr._2 < time + constant.TIME_DAY).collect) {
-        val temp_result = (triplet.srcAttr._1.toString, triplet.srcId.toInt, triplet.dstAttr._1.toString, triplet.dstId.toInt)
+        val temp_result = (triplet.srcAttr._1.toString, triplet.srcId.toInt, triplet.srcAttr._3, triplet.dstAttr._1.toString, triplet.dstId.toInt, triplet.dstAttr._3)
         monthData += temp_result
         println(s"${triplet.srcAttr._1}, ${triplet.srcId}, ${triplet.dstAttr._1}, ${triplet.dstId}")
       }
@@ -69,7 +69,7 @@ object Main {
     implicit val formats = Serialization.formats(NoTypeHints)
     println(write(dateMap.value.values.toArray))
     // val initRdd = sc.makeRDD(dateMap.value.values.toArray)
-    val writer = new PrintWriter(new File("test.json" ))
+    val writer = new PrintWriter(new File("final_data.json"))
 
     writer.write(write(dateMap.value.values.toArray))
     writer.close()
