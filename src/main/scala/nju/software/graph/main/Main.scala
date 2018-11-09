@@ -69,7 +69,7 @@ object Main {
     implicit val formats = Serialization.formats(NoTypeHints)
     println(write(dateMap.value.values.toArray))
     // val initRdd = sc.makeRDD(dateMap.value.values.toArray)
-    val writer = new PrintWriter(new File("final_data.json"))
+    val writer = new PrintWriter(new File("final_data2.json"))
 
     writer.write(write(dateMap.value.values.toArray))
     writer.close()
