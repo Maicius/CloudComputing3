@@ -1,26 +1,12 @@
 package nju.software.graph.main
 
-import java.io.{File, PrintWriter}
-
-import nju.software.graph.accumulator.DateResultAccumulator
-import nju.software.graph.constant.constant
-import nju.software.graph.entity.Entity.DateResult
-import nju.software.graph.util.Util
+import scala.io.Source
 import org.apache.spark._
-import org.apache.spark.graphx.{Edge, Graph, VertexId}
-import org.apache.spark.graphx._
+import org.apache.spark.graphx.{Graph, VertexId}
+import org.apache.spark.graphx.lib.ShortestPaths
 import org.apache.spark.rdd.RDD
-import org.json4s.native.JsonMethods._
-import org.json4s.JsonDSL.WithDouble._
-import org.json4s.jackson.JsonMethods._
-
-import scala.collection.mutable
-import org.json4s.JsonDSL._
-import org.json4s.NoTypeHints
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization._
-import org.json4s.jackson.Serialization
-
+import java.io.PrintWriter
+import java.io.File
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -29,51 +15,40 @@ import scala.collection.mutable.ArrayBuffer
   */
 
 object Main {
-
   def main(args: Array[String]): Unit = {
-    val conf = new SparkConf().setAppName("GraphX").setMaster("local[*]")
+    val file_path = args(0)
+    val conf = new SparkConf().setAppName("GraphX").setMaster("spark://192.168.68.11:7077")
     val sc = new SparkContext(conf)
-    val dateMap = new DateResultAccumulator()
-    sc.register(dateMap, "dateMap")
-
-    val node_data: RDD[(Long, (String, Int, String))] = sc.textFile(constant.NODE_FILE_PATH).map { line =>
-      val fields = line.split(",")
-      (fields(0).toLong, (fields(1), fields(3).toInt, fields(4)))
+    val id_data = read_variables(file_path)
+    val edge_data: RDD[(VertexId, VertexId)] = sc.textFile(file_path + "data.txt").map { line =>
+      val data = line.split(",")
+      (data(0).substring(2).toLong, data(1).substring(2).toInt)
     }
-    val maxKey = node_data.max()(new Ordering[(Long, (String, Int, String))]() {
-      override def compare(x: (Long, (String, Int, String)), y: (Long, (String, Int, String))): Int =
-        Ordering[Int].compare(x._2._2, y._2._2)
-    })
-    println(maxKey._2._2)
-    val minKey = node_data.min()(new Ordering[(Long, (String, Int, String))]() {
-      override def compare(x: (Long, (String, Int, String)), y: (Long, (String, Int, String))): Int =
-        Ordering[Int].compare(x._2._2, y._2._2)
-    })
-    println(minKey._2._2)
-    val edge_data: RDD[Edge[Int]] = sc.textFile(constant.EDGE_FILE_PATH).map { line =>
-      val data = line.split(" ")
-      Edge(data(0).toLong, data(1).toInt)
-    }
-    val graph: Graph[(String, Int, String), Int] = Graph(node_data, edge_data)
-    for (time <- Range(minKey._2._2, maxKey._2._2, constant.TIME_DAY)) {
-      var monthData: ArrayBuffer[(String, Int, String,String, Int, String)] = new ArrayBuffer[(String, Int, String,String, Int,String)]()
-      val month = Util.tranTimeToString(time)
-      for (triplet <- graph.triplets.filter(t => t.dstAttr._2 > time && t.dstAttr._2 < time + constant.TIME_DAY).collect) {
-        val temp_result = (triplet.srcAttr._1.toString, triplet.srcId.toInt, triplet.srcAttr._3, triplet.dstAttr._1.toString, triplet.dstId.toInt, triplet.dstAttr._3)
-        monthData += temp_result
-        println(s"${triplet.srcAttr._1}, ${triplet.srcId}, ${triplet.dstAttr._1}, ${triplet.dstId}")
-      }
-      val dateResult: DateResult = DateResult(month, monthData)
-      dateMap.add(dateResult)
-    }
-    implicit val formats = Serialization.formats(NoTypeHints)
-    println(write(dateMap.value.values.toArray))
-    // val initRdd = sc.makeRDD(dateMap.value.values.toArray)
-    val writer = new PrintWriter(new File("final_data2.json"))
-
-    writer.write(write(dateMap.value.values.toArray))
+    val graph = Graph.fromEdgeTuples(edge_data, 1)
+    val raw_graph = Graph.fromEdgeTuples(edge_data, 1)
+    // 计算重复边
+    val repeat_edge = graph.edges.map(x => (x, 1)).reduceByKey((a, b) => a + b)
+    val repeat_length = repeat_edge.collect().count(e => e._2 >= 2)
+    println("重复边数量：", repeat_length)
+    val double_edge = (graph.reverse.edges.collect().toSet & graph.edges.collect().toSet).toList.length / 2
+    println("双向边数量:", double_edge)
+    val results = ShortestPaths.run(graph, Seq(id_data._1, id_data._2)).vertices.filter(x => x._1 == id_data._1).collect.map {
+      x => x._2.getOrElse(id_data._2, 0)
+    }.toList
+    println("最短路径：", results)
+    val result = ArrayBuffer(double_edge, repeat_length, results.head)
+    val writer = new PrintWriter(new File(file_path + "MG1832011.txt"))
+    for (i <- 0 to 2)
+      writer.println(result(i))
     writer.close()
-    // initRdd.saveAsTextFile("test.txt")
+  }
+  def read_variables(file_path: String): (Int, Int) = {
+    val file = Source.fromFile(file_path + "variables.txt")
+    val id_data: ArrayBuffer[String] = new ArrayBuffer[String]()
+    for (line <- file.getLines()) {
+      id_data += line
+    }
+    (id_data(0).substring(2).toInt, id_data(1).substring(2).toInt)
   }
 
 }
